@@ -4,33 +4,45 @@ import '../models/trip.dart';
 class TripService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Create a new trip
+  // Helper to generate trip ID from destination
+  String generateTripId(String destination) {
+    // Lowercase, remove spaces, take first 3 letters + _trip
+    final code = destination.trim().toLowerCase().replaceAll(' ', '').substring(0, 3);
+    return '${code}_trip';
+  }
+
+  // Create a new trip with custom trip ID
   Future<Trip?> createTrip({
     required String adminId,
     required String destination,
     required DateTime dateTime,
   }) async {
     try {
-      DocumentReference docRef = await _firestore.collection('trips').add({
+      final tripId = generateTripId(destination);
+
+      // Use set() with custom doc ID to avoid duplicates you can add checks (optional)
+      await _firestore.collection('trips').doc(tripId).set({
         'adminId': adminId,
         'destination': destination,
         'dateTime': dateTime,
         'members': [adminId],
         'createdAt': FieldValue.serverTimestamp(),
       });
+
       return Trip(
-        id: docRef.id,
+        id: tripId,
         adminId: adminId,
         destination: destination,
         dateTime: dateTime,
         members: [adminId],
       );
     } catch (e) {
+      print('CreateTrip error: $e');
       return null;
     }
   }
 
-  // Join an existing trip
+  // Join an existing trip by custom trip ID
   Future<bool> joinTrip(String tripId, String userId) async {
     try {
       final docRef = _firestore.collection('trips').doc(tripId);
@@ -52,8 +64,6 @@ class TripService {
     }
   }
 
-
-  // Get stream of trips
   Stream<List<Trip>> getTrips() {
     return _firestore
         .collection('trips')
@@ -66,7 +76,6 @@ class TripService {
     });
   }
 
-  // Get single trip
   Future<Trip?> getTrip(String tripId) async {
     try {
       DocumentSnapshot doc = await _firestore.collection('trips').doc(tripId).get();
@@ -75,6 +84,7 @@ class TripService {
       }
       return null;
     } catch (e) {
+      print('GetTrip Error: $e');
       return null;
     }
   }
