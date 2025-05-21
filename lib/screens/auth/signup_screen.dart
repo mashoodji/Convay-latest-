@@ -80,7 +80,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   // Replace 'assets/signup_banner.png' with your actual image path.
                   // Ensure this image is added to your pubspec.yaml assets.
                   Image.asset(
-                    'assets/073d88d7-bda9-4454-81a1-a8fc5db5c95e.png',
+                    'assets/login.png',
                     height: 200,
                     width: 500,
                   ),

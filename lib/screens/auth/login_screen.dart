@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Make sure to add your image to the pubspec.yaml file under the assets section.
                     // Replace 'assets/login_banner.png' with your actual image path.
                     Image.asset(
-                      'assets/073d88d7-bda9-4454-81a1-a8fc5db5c95e.png',
+                      'assets/login.png',
                       height: 250,
                       width: 550,
                     ),
