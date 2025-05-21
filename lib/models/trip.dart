@@ -16,17 +16,55 @@ class Trip {
   });
 
   factory Trip.fromMap(String id, Map<String, dynamic> data) {
-    return Trip(
-      id: id,
-      adminId: data['adminId'] is String ? data['adminId'] : '',
-      destination: data['destination'] is String ? data['destination'] : '',
-      dateTime: (data['dateTime'] is Timestamp)
-          ? (data['dateTime'] as Timestamp).toDate()
-          : DateTime.now(),
-      members: (data['members'] is List)
-          ? List<String>.from(data['members'].whereType<String>())
-          : [],
-    );
+    try {
+      // Debug log raw data
+      print('Parsing Trip Data:');
+      print('ID: $id');
+      print('Raw data: $data');
+
+      // Parse with fallbacks
+      final adminId = data['adminId']?.toString() ?? '';
+      final destination = data['destination']?.toString() ?? '';
+
+      DateTime dateTime;
+      if (data['dateTime'] is Timestamp) {
+        dateTime = (data['dateTime'] as Timestamp).toDate();
+      } else if (data['dateTime'] is DateTime) {
+        dateTime = data['dateTime'] as DateTime;
+      } else {
+        print('Warning: Invalid dateTime format, using now()');
+        dateTime = DateTime.now();
+      }
+
+      // Parse members list safely
+      List<String> members = [];
+      if (data['members'] is List) {
+        members = (data['members'] as List)
+            .map((e) => e?.toString())
+            .where((e) => e != null)
+            .cast<String>()
+            .toList();
+      }
+
+      print('Successfully parsed trip: ${{
+        'id': id,
+        'adminId': adminId,
+        'destination': destination,
+        'dateTime': dateTime,
+        'members': members
+      }}');
+
+      return Trip(
+        id: id,
+        adminId: adminId,
+        destination: destination,
+        dateTime: dateTime,
+        members: members,
+      );
+    } catch (e) {
+      print('Failed to parse Trip: $e');
+      rethrow; // Or return a default trip if preferred
+    }
   }
 
   Map<String, dynamic> toMap() {
