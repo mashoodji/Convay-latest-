@@ -35,13 +35,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
         username: _usernameController.text.trim(),
       );
 
-      if (result == null) {
-        setState(() => _errorMessage = 'Sign up failed. Please try again.');
+      // If signup was successful and we're still on this screen
+      if (mounted) {
+        // Navigate to the next screen (e.g., home or profile completion)
+        Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
-      setState(() => _errorMessage = e.toString());
+      // Now we can display the specific error message from AuthService
+      if (mounted) {
+        setState(() => _errorMessage = e.toString().replaceAll('Exception: ', ''));
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -124,17 +131,38 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 24),
               if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _errorMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               _isLoading
                   ? const CircularProgressIndicator()
                   : ElevatedButton(
                 onPressed: _signUp,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
                 child: const Text('Sign Up'),
               ),
               const SizedBox(height: 16),

@@ -37,13 +37,24 @@ class AuthService {
     required String username,
   }) async {
     try {
+      // Check if username already exists
+      final usernameQuery = await _firestore
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .get();
+
+      if (usernameQuery.docs.isNotEmpty) {
+        throw Exception('Username already taken');
+      }
+
+      // Create user with Firebase Auth
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       final user = userCredential.user;
-      if (user == null) return null;
+      if (user == null) throw Exception('Failed to create user account');
 
       // Create user document in Firestore
       final appUser = AppUser(
@@ -55,9 +66,23 @@ class AuthService {
       await _firestore.collection('users').doc(user.uid).set(appUser.toMap());
 
       return appUser;
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      // Handle specific Firebase Auth errors
+      switch (e.code) {
+        case 'email-already-in-use':
+          throw Exception('Email already in use');
+        case 'invalid-email':
+          throw Exception('Invalid email address');
+        case 'weak-password':
+          throw Exception('Password is too weak');
+        case 'operation-not-allowed':
+          throw Exception('Email/password accounts are not enabled');
+        default:
+          throw Exception('Authentication error: ${e.message}');
+      }
     } catch (e) {
-      print("Sign up error: $e");
-      return null;
+      // Rethrow the exception to be handled by the UI
+      rethrow;
     }
   }
 
@@ -65,7 +90,7 @@ class AuthService {
   Future<AppUser?> signInWithEmail({
     required String email,
     required String password,
-   }) async {
+  }) async {
     try {
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
@@ -73,15 +98,29 @@ class AuthService {
       );
 
       final user = userCredential.user;
-      if (user == null) return null;
+      if (user == null) throw Exception('Failed to sign in');
 
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (!userDoc.exists) return null;
+      if (!userDoc.exists) throw Exception('User profile not found');
 
       return AppUser.fromMap(userDoc.data()!);
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      // Handle specific Firebase Auth errors
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception('No user found with this email');
+        case 'wrong-password':
+          throw Exception('Incorrect password');
+        case 'user-disabled':
+          throw Exception('This account has been disabled');
+        case 'invalid-email':
+          throw Exception('Invalid email address');
+        default:
+          throw Exception('Authentication error: ${e.message}');
+      }
     } catch (e) {
-      print("Sign in error: $e");
-      return null;
+      // Rethrow the exception to be handled by the UI
+      rethrow;
     }
   }
 
