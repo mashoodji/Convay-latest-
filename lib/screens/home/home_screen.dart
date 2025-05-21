@@ -77,8 +77,8 @@ class HomeScreen extends StatelessWidget {
                             style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A237E), // Dark blue button
-                            minimumSize: const Size.fromHeight(50), // Larger button
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white, // Larger button
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(25), // Rounded corners
                             ),
@@ -93,10 +93,10 @@ class HomeScreen extends StatelessWidget {
                               MaterialPageRoute(builder: (context) => const JoinTripScreen()),
                             );
                           },
-                          icon: const Icon(Icons.group_add_outlined, color: Color(0xFF1A237E)), // Dark blue icon
+                          icon: const Icon(Icons.group_add_outlined, color: Colors.black), // Dark blue icon
                           label: const Text(
                             'Join Existing Trip',
-                            style: TextStyle(color: Color(0xFF1A237E), fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white, // White background
@@ -115,7 +115,7 @@ class HomeScreen extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1A237E), // Dark blue heading
+                            color: Colors.black // Dark blue heading
                           ),
                         ),
                         const Divider(color: Color(0xFF1A237E), thickness: 1), // Blue divider
@@ -147,13 +147,13 @@ class HomeScreen extends StatelessWidget {
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                            leading: const Icon(Icons.map, color: Color(0xFF1A237E), size: 30), // Map icon
+                            leading: const Icon(Icons.map, color: Colors.black, size: 30), // Map icon
                             title: Text(
                               '${trip.destination}',
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF1A237E),
+                                color: Colors.black,
                               ),
                             ),
                             subtitle: Column(
