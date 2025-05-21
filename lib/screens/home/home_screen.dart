@@ -59,7 +59,7 @@ class HomeScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Image.asset(
-                          'assets/c44674bf-abc7-4fe5-9a6f-b28dabbc6d3e.png', // Add a relevant image for the home screen
+                          'assets/images/c44674bf-abc7-4fe5-9a6f-b28dabbc6d3e.png', // Add a relevant image for the home screen
                           height: 150,
                           fit: BoxFit.contain,
                         ),
