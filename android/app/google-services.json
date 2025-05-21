@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "434612685915",
+    "project_id": "convoy-app-e4ba4",
+    "storage_bucket": "convoy-app-e4ba4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434612685915:android:16d7070812085cb7e3c37e",
+        "android_client_info": {
+          "package_name": "com.example.convoy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCh1w1rzpGTqn4ihU_hHdxt9VAVkCSHNwc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434612685915:android:4cac277b49b5dd90e3c37e",
+        "android_client_info": {
+          "package_name": "com.example.gef"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCh1w1rzpGTqn4ihU_hHdxt9VAVkCSHNwc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
