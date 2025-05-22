@@ -265,7 +265,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Contact support or visit the FAQ section',
+                    'Contact support or visit the FAQ sections',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[600],
