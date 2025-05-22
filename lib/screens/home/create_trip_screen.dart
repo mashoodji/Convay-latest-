@@ -192,7 +192,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   ),
                 ),
                 child: const Text(
-                  'Create Trips',
+                  'Create Trip',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
