@@ -201,7 +201,7 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
             Center(
               child: Text(
-                'Adventure awaits — plan it right!',
+                'Adventure awaits — plan it rights!',
                 style: TextStyle(
                   fontSize: 13,
                   fontStyle: FontStyle.italic,
