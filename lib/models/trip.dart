@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class Trip {
   final String id;
@@ -6,6 +7,7 @@ class Trip {
   final String destination;
   final DateTime dateTime;
   final List<String> members;
+  final GeoPoint? location;
 
   Trip({
     required this.id,
@@ -13,16 +15,11 @@ class Trip {
     required this.destination,
     required this.dateTime,
     required this.members,
+    this.location,
   });
 
   factory Trip.fromMap(String id, Map<String, dynamic> data) {
     try {
-      // Debug log raw data
-      print('Parsing Trip Data:');
-      print('ID: $id');
-      print('Raw data: $data');
-
-      // Parse with fallbacks
       final adminId = data['adminId']?.toString() ?? '';
       final destination = data['destination']?.toString() ?? '';
 
@@ -32,11 +29,9 @@ class Trip {
       } else if (data['dateTime'] is DateTime) {
         dateTime = data['dateTime'] as DateTime;
       } else {
-        print('Warning: Invalid dateTime format, using now()');
         dateTime = DateTime.now();
       }
 
-      // Parse members list safely
       List<String> members = [];
       if (data['members'] is List) {
         members = (data['members'] as List)
@@ -46,13 +41,10 @@ class Trip {
             .toList();
       }
 
-      print('Successfully parsed trip: ${{
-        'id': id,
-        'adminId': adminId,
-        'destination': destination,
-        'dateTime': dateTime,
-        'members': members
-      }}');
+      GeoPoint? location;
+      if (data['location'] is GeoPoint) {
+        location = data['location'] as GeoPoint;
+      }
 
       return Trip(
         id: id,
@@ -60,10 +52,11 @@ class Trip {
         destination: destination,
         dateTime: dateTime,
         members: members,
+        location: location,
       );
     } catch (e) {
       print('Failed to parse Trip: $e');
-      rethrow; // Or return a default trip if preferred
+      rethrow;
     }
   }
 
@@ -73,6 +66,12 @@ class Trip {
       'destination': destination,
       'dateTime': Timestamp.fromDate(dateTime),
       'members': members,
+      'location': location,
     };
+  }
+
+  LatLng? get latLng {
+    if (location == null) return null;
+    return LatLng(location!.latitude, location!.longitude);
   }
 }

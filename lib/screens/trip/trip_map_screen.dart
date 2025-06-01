@@ -1,7 +1,7 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart'; // Add this import
 import 'package:provider/provider.dart';
 import '../../models/trip.dart';
 import '../../services/trip_service.dart';
@@ -16,53 +16,49 @@ class TripMapScreen extends StatefulWidget {
 }
 
 class _TripMapScreenState extends State<TripMapScreen> {
-  late GoogleMapController _mapController;
-  final LatLng _initialPosition = const LatLng(37.7749, -122.4194);
-
+  GoogleMapController? _mapController;  // <-- nullable now
   late Timer _timer;
-
   List<LatLng> _memberPositions = [];
   Set<Marker> _markers = {};
-
   Trip? _trip;
 
   @override
   void initState() {
     super.initState();
+    _loadTrip();
+    _timer = Timer.periodic(const Duration(seconds: 3), _updatePositions);
+  }
 
-    // Initialize member positions with slight offsets
-    _memberPositions = List.generate(
-      5,
-          (i) => LatLng(
-        _initialPosition.latitude + i * 0.001,
-        _initialPosition.longitude + i * 0.001,
-      ),
-    );
+  Future<void> _loadTrip() async {
+    final tripService = Provider.of<TripService>(context, listen: false);
+    final tripData = await tripService.getTrip(widget.tripId);
 
-    // Initialize markers
-    _updateMarkers();
-
-    // Load trip data once, outside of build
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final tripService = Provider.of<TripService>(context, listen: false);
-      final tripData = await tripService.getTrip(widget.tripId);
-
+    if (mounted) {
       setState(() {
         _trip = tripData;
+        if (_trip?.latLng != null) {
+          _memberPositions = [_trip!.latLng!];
+          _updateMarkers();
+
+          // Safely animate camera only if controller is ready
+          if (_mapController != null) {
+            _mapController!.animateCamera(
+              CameraUpdate.newLatLngZoom(_trip!.latLng!, 14),
+            );
+          }
+        }
       });
-    });
+    }
+  }
 
-    // Timer to update positions and markers every 3 seconds
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!mounted) return;
+  void _updatePositions(Timer timer) {
+    if (!mounted || _trip == null) return;
 
-      setState(() {
-        _memberPositions = _memberPositions.map((pos) {
-          return LatLng(pos.latitude + 0.0001, pos.longitude + 0.0001);
-        }).toList();
-
-        _updateMarkers();
-      });
+    setState(() {
+      _memberPositions = _memberPositions.map((pos) {
+        return LatLng(pos.latitude + 0.0001, pos.longitude + 0.0001);
+      }).toList();
+      _updateMarkers();
     });
   }
 
@@ -83,13 +79,24 @@ class _TripMapScreenState extends State<TripMapScreen> {
         markerId: MarkerId('member$idx'),
         position: pos,
         icon: BitmapDescriptor.defaultMarkerWithHue(hues[idx % hues.length]),
+        infoWindow: InfoWindow(title: 'Member ${idx + 1}'),
       );
     }).toSet();
+
+    if (_trip?.latLng != null) {
+      _markers.add(Marker(
+        markerId: const MarkerId('destination'),
+        position: _trip!.latLng!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        infoWindow: InfoWindow(title: _trip!.destination),
+      ));
+    }
   }
 
   @override
   void dispose() {
     _timer.cancel();
+    _mapController?.dispose();  // <-- safely dispose if not null
     super.dispose();
   }
 
@@ -104,13 +111,21 @@ class _TripMapScreenState extends State<TripMapScreen> {
           Expanded(
             child: GoogleMap(
               initialCameraPosition: CameraPosition(
-                target: _initialPosition,
-                zoom: 12,
+                target: _trip?.latLng ?? const LatLng(0, 0),
+                zoom: _trip?.latLng != null ? 12 : 1,
               ),
               onMapCreated: (controller) {
                 _mapController = controller;
+
+                // Animate camera to trip location if loaded
+                if (_trip?.latLng != null) {
+                  _mapController!.animateCamera(
+                    CameraUpdate.newLatLngZoom(_trip!.latLng!, 14),
+                  );
+                }
               },
               markers: _markers,
+              myLocationEnabled: true,
             ),
           ),
           Padding(
@@ -118,8 +133,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Destination: ${_trip!.destination}', style: const TextStyle(fontSize: 18)),
-                Text('Members: ${_trip!.members.length}', style: const TextStyle(fontSize: 16)),
+                Text('Destination: ${_trip!.destination}',
+                    style: const TextStyle(fontSize: 18)),
+                Text('Date: ${DateFormat.yMMMd().format(_trip!.dateTime)}',
+                    style: const TextStyle(fontSize: 16)),
+                Text('Time: ${DateFormat.jm().format(_trip!.dateTime)}',
+                    style: const TextStyle(fontSize: 16)),
+                Text('Members: ${_trip!.members.length}',
+                    style: const TextStyle(fontSize: 16)),
               ],
             ),
           ),

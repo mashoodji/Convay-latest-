@@ -1,51 +1,57 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/trip.dart';
 
 class TripService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  CollectionReference get _tripsCollection => _firestore.collection('trips');
 
-  // Helper to generate trip ID from destination
+  // Helper to generate trip ID from first 3 letters of destination
   String generateTripId(String destination) {
-    // Lowercase, remove spaces, take first 3 letters + _trip
-    final code = destination.trim().toLowerCase().replaceAll(' ', '').substring(0, 3);
-    return '${code}_trip';
+    final code = destination.trim().toLowerCase().replaceAll(' ', '');
+    final prefix = code.length >= 3 ? code.substring(0, 3) : code;
+    return '${prefix}_trip';
   }
 
-  // Create a new trip with custom trip ID
   Future<Trip?> createTrip({
     required String adminId,
     required String destination,
     required DateTime dateTime,
+    LatLng? location,
+    String? tripId,
   }) async {
     try {
-      final tripId = generateTripId(destination);
+      final generatedTripId = tripId ?? generateTripId(destination);
+      final docRef = _tripsCollection.doc(generatedTripId);
 
-      // Use set() with custom doc ID to avoid duplicates you can add checks (optional)
-      await _firestore.collection('trips').doc(tripId).set({
+      final tripData = {
         'adminId': adminId,
         'destination': destination,
-        'dateTime': dateTime,
+        'dateTime': Timestamp.fromDate(dateTime),
         'members': [adminId],
+        if (location != null) 'location': GeoPoint(location.latitude, location.longitude),
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      await docRef.set(tripData);
 
       return Trip(
-        id: tripId,
+        id: generatedTripId,
         adminId: adminId,
         destination: destination,
         dateTime: dateTime,
         members: [adminId],
+        location: location != null ? GeoPoint(location.latitude, location.longitude) : null,
       );
     } catch (e) {
-      print('CreateTrip error: $e');
+      print('Error creating trip: $e');
       return null;
     }
   }
 
-  // Join an existing trip by custom trip ID
   Future<bool> joinTrip(String tripId, String userId) async {
     try {
-      final docRef = _firestore.collection('trips').doc(tripId);
+      final docRef = _tripsCollection.doc(tripId);
       final docSnap = await docRef.get();
 
       if (!docSnap.exists) {
@@ -65,8 +71,7 @@ class TripService {
   }
 
   Stream<List<Trip>> getTrips() {
-    return _firestore
-        .collection('trips')
+    return _tripsCollection
         .orderBy('dateTime', descending: false)
         .snapshots()
         .map((snapshot) {
@@ -78,7 +83,7 @@ class TripService {
 
   Future<Trip?> getTrip(String tripId) async {
     try {
-      DocumentSnapshot doc = await _firestore.collection('trips').doc(tripId).get();
+      DocumentSnapshot doc = await _tripsCollection.doc(tripId).get();
       if (doc.exists) {
         return Trip.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       }

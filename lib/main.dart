@@ -8,9 +8,12 @@ import 'screens/home/home_screen.dart';
 import 'services/auth_service.dart';
 import 'services/trip_service.dart';
 import 'services/voice_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Permission.locationWhenInUse.request();
   await Firebase.initializeApp();
   runApp(
     MultiProvider(

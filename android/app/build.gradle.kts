@@ -45,3 +45,13 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation("com.google.android.gms:play-services-basement:18.1.0")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.20")
+    implementation("androidx.core:core-ktx:1.10.1")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.gms:play-services-basement:18.1.0")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    // Add other dependencies using the same syntax
+}
