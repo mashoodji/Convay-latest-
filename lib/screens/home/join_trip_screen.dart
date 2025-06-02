@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../services/auth_service.dart';
 import '../../services/trip_service.dart';
+import '../../services/location_service.dart';
 import '../trip/trip_map_screen.dart';
 
 class JoinTripScreen extends StatefulWidget {
@@ -14,6 +17,18 @@ class JoinTripScreen extends StatefulWidget {
 class _JoinTripScreenState extends State<JoinTripScreen> {
   final _tripIdController = TextEditingController();
   bool _isLoading = false;
+  LatLng? _currentLocation;
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      final locationService = LocationService();
+      _currentLocation = await locationService.getCurrentLocation();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not get location: ${e.toString()}')),
+      );
+    }
+  }
 
   Future<void> _joinTrip() async {
     if (_tripIdController.text.trim().isEmpty) {
@@ -23,30 +38,48 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
       return;
     }
 
+    if (_currentLocation == null) {
+      await _getCurrentLocation();
+      if (_currentLocation == null) return;
+    }
+
     setState(() => _isLoading = true);
 
-    final tripService = Provider.of<TripService>(context, listen: false);
-    final authService = Provider.of<AuthService>(context, listen: false);
+    try {
+      final tripService = Provider.of<TripService>(context, listen: false);
+      final authService = Provider.of<AuthService>(context, listen: false);
 
-    final success = await tripService.joinTrip(
-      _tripIdController.text.trim(),
-      authService.currentUser!.uid,
-    );
-
-    setState(() => _isLoading = false);
-
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TripMapScreen(tripId: _tripIdController.text.trim()),
-        ),
+      final success = await tripService.joinTrip(
+        tripId: _tripIdController.text.trim(),
+        userId: authService.currentUser!.uid,
+        location: _currentLocation!, name: '',
       );
-    } else {
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (success) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TripMapScreen(
+              tripId: _tripIdController.text.trim(),
+              currentUserId: authService.currentUser!.uid,
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Trip not found or join failed. Check Trip ID and try again.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Trip not found or join failed. Check Trip ID and try again.'),
-        ),
+        SnackBar(content: Text('Error joining trip: ${e.toString()}')),
       );
     }
   }
@@ -80,10 +113,9 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Illustration under the AppBar
             Center(
               child: Image.asset(
-                'assets/images/login.png', // use same or appropriate illustration
+                'assets/images/login.png',
                 height: 180,
                 fit: BoxFit.contain,
               ),
@@ -116,7 +148,7 @@ class _JoinTripScreenState extends State<JoinTripScreen> {
               child: TextField(
                 controller: _tripIdController,
                 decoration: const InputDecoration(
-                  hintText: 'e.g. nyc_trip',
+                  hintText: 'e.g. NYC',
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),

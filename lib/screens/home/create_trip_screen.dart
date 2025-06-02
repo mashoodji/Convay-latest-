@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -139,22 +141,36 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
         latLng.longitude,
       );
 
-      String address = placemarks.isNotEmpty
-          ? '${placemarks.first.street}, ${placemarks.first.locality}'
-          : 'Selected Location';
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks.first;
 
-      setState(() {
-        _selectedLocation = latLng;
-        _destinationController.text = address;
-        _markers.removeWhere((m) => m.markerId.value == 'destination');
-        _markers.add(
-          Marker(
-            markerId: const MarkerId('destination'),
-            position: latLng,
-            infoWindow: InfoWindow(title: address),
-          ),
-        );
-      });
+        String address = [
+          // if (place.name != null && place.name!.isNotEmpty) place.name,
+          // if (place.subThoroughfare != null && place.subThoroughfare!.isNotEmpty) place.subThoroughfare,
+          if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) place.thoroughfare,
+          if (place.subLocality != null && place.subLocality!.isNotEmpty) place.subLocality,
+          if (place.locality != null && place.locality!.isNotEmpty) place.locality,
+          if (place.subAdministrativeArea != null && place.subAdministrativeArea!.isNotEmpty) place.subAdministrativeArea,
+          if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) place.administrativeArea,
+          if (place.postalCode != null && place.postalCode!.isNotEmpty) place.postalCode,
+          if (place.country != null && place.country!.isNotEmpty) place.country,
+        ].join(', ');
+
+        setState(() {
+          _selectedLocation = latLng;
+          _destinationController.text = address;
+          _markers.removeWhere((m) => m.markerId.value == 'destination');
+          _markers.add(
+            Marker(
+              markerId: const MarkerId('destination'),
+              position: latLng,
+              infoWindow: InfoWindow(title: address),
+            ),
+          );
+        });
+      } else {
+        throw Exception("No placemarks found");
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not get address: ${e.toString()}')),
@@ -163,64 +179,93 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   }
 
   Future<void> _createTrip() async {
-    if (_destinationController.text.trim().isEmpty || _selectedLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a destination')),
-      );
+    final destination = _destinationController.text.trim();
+    if (destination.isEmpty || _selectedLocation == null) {
+      _showSnackBar('Please select a destination');
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final tripService = Provider.of<TripService>(context, listen: false);
-    final authService = Provider.of<AuthService>(context, listen: false);
-
-    final dateTime = DateTime(
-      _tripDate.year,
-      _tripDate.month,
-      _tripDate.day,
-      _tripTime.hour,
-      _tripTime.minute,
-    );
-
-    final destination = _destinationController.text.trim();
-    final shortFormId = _generateShortForm(destination);
-
-    final trip = await tripService.createTrip(
-      tripId: shortFormId, // <-- pass this
-      adminId: authService.currentUser!.uid,
-      destination: destination,
-      dateTime: dateTime,
-      location: _selectedLocation,
-    );
-
-
-    setState(() => _isLoading = false);
-
-    if (trip != null) {
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Trip Created'),
-          content: Text('Trip ID: ${trip.id}'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+    try {
+      final tripId = _generateTripId(destination);
+      final dateTime = DateTime(
+        _tripDate.year,
+        _tripDate.month,
+        _tripDate.day,
+        _tripTime.hour,
+        _tripTime.minute,
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => TripMapScreen(tripId: trip.id)),
+
+      final tripService = Provider.of<TripService>(context, listen: false);
+      final authService = Provider.of<AuthService>(context, listen: false);
+
+      final trip = await tripService.createTrip(
+        tripId: tripId,
+        adminId: authService.currentUser!.uid,
+        destination: destination,
+        dateTime: dateTime,
+        location: _selectedLocation!, members: {},
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to create trip')),
-      );
+
+      setState(() => _isLoading = false);
+
+      if (trip == null) {
+        _showSnackBar('Failed to create trip');
+        return;
+      }
+
+      await _showTripCreatedDialog(trip.id);
+      _navigateToTripMap(trip.id, authService.currentUser!.uid);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('Error creating trip: $e');
     }
   }
+
+  String _generateTripId(String destination) {
+    // Remove non-alphanumeric characters and convert to lowercase
+    final sanitized = destination.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+
+    // Take the first 3 letters, or the whole string if less than 3 letters
+    final prefix = sanitized.length >= 3 ? sanitized.substring(0, 3) : sanitized;
+
+    return '${prefix}_trip';
+  }
+
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _showTripCreatedDialog(String tripId) {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Trip Created'),
+        content: Text('Trip ID: $tripId'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToTripMap(String tripId, String currentUserId) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TripMapScreen(
+          tripId: tripId,
+          currentUserId: currentUserId,
+        ),
+      ),
+    );
+  }
+
 
   @override
   void dispose() {
@@ -318,11 +363,18 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
                   onTap: _handleMapTap,
                   myLocationEnabled: true,
                   myLocationButtonEnabled: true,
-                  zoomControlsEnabled: false,      // Hides default + / - buttons
-                  zoomGesturesEnabled: true,       // Enable pinch-to-zoom
-                  scrollGesturesEnabled: true,     // Allow scrolling
-                  rotateGesturesEnabled: true,     // Optional: allow rotation
-                  tiltGesturesEnabled: true,       // Optional: allow tilt
+                  zoomControlsEnabled: true,            // Show + / - buttons
+                  zoomGesturesEnabled: true,           // Enable pinch-to-zoom
+                  scrollGesturesEnabled: true,         // Enable map dragging
+                  rotateGesturesEnabled: true,         // Optional: allow rotation
+                  tiltGesturesEnabled: true,           // Optional: allow tilt
+                  minMaxZoomPreference: const MinMaxZoomPreference(5, 18),
+
+                  gestureRecognizers: {
+                    Factory<OneSequenceGestureRecognizer>(
+                          () => EagerGestureRecognizer(),
+                    ),
+                  },
                 ),
               ),
             ),

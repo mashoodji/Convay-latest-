@@ -174,7 +174,7 @@ class HomeScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => TripMapScreen(tripId: tripId),
+                                  builder: (context) => TripMapScreen(tripId: tripId, currentUserId: '',),
                                 ),
                               );
                             },

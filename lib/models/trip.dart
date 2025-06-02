@@ -6,58 +6,30 @@ class Trip {
   final String adminId;
   final String destination;
   final DateTime dateTime;
+  final GeoPoint location;
   final List<String> members;
-  final GeoPoint? location;
+  final DateTime createdAt;
 
   Trip({
     required this.id,
     required this.adminId,
     required this.destination,
     required this.dateTime,
+    required this.location,
     required this.members,
-    this.location,
+    required this.createdAt,
   });
 
   factory Trip.fromMap(String id, Map<String, dynamic> data) {
-    try {
-      final adminId = data['adminId']?.toString() ?? '';
-      final destination = data['destination']?.toString() ?? '';
-
-      DateTime dateTime;
-      if (data['dateTime'] is Timestamp) {
-        dateTime = (data['dateTime'] as Timestamp).toDate();
-      } else if (data['dateTime'] is DateTime) {
-        dateTime = data['dateTime'] as DateTime;
-      } else {
-        dateTime = DateTime.now();
-      }
-
-      List<String> members = [];
-      if (data['members'] is List) {
-        members = (data['members'] as List)
-            .map((e) => e?.toString())
-            .where((e) => e != null)
-            .cast<String>()
-            .toList();
-      }
-
-      GeoPoint? location;
-      if (data['location'] is GeoPoint) {
-        location = data['location'] as GeoPoint;
-      }
-
-      return Trip(
-        id: id,
-        adminId: adminId,
-        destination: destination,
-        dateTime: dateTime,
-        members: members,
-        location: location,
-      );
-    } catch (e) {
-      print('Failed to parse Trip: $e');
-      rethrow;
-    }
+    return Trip(
+      id: id,
+      adminId: data['adminId'] as String,
+      destination: data['destination'] as String,
+      dateTime: (data['dateTime'] as Timestamp).toDate(),
+      location: data['location'] as GeoPoint,
+      members: List<String>.from(data['members'] as List),
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+    );
   }
 
   Map<String, dynamic> toMap() {
@@ -65,13 +37,11 @@ class Trip {
       'adminId': adminId,
       'destination': destination,
       'dateTime': Timestamp.fromDate(dateTime),
-      'members': members,
       'location': location,
+      'members': members,
+      'createdAt': Timestamp.fromDate(createdAt),
     };
   }
 
-  LatLng? get latLng {
-    if (location == null) return null;
-    return LatLng(location!.latitude, location!.longitude);
-  }
+  LatLng get latLng => LatLng(location.latitude, location.longitude);
 }
