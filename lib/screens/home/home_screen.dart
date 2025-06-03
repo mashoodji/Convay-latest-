@@ -160,7 +160,7 @@ class HomeScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Trip ID: $tripId',
+                                  'Trip IDs: $tripId',
                                   style: const TextStyle(color: Colors.grey, fontSize: 14),
                                 ),
                                 Text(
