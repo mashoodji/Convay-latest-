@@ -16,7 +16,7 @@ class HomeScreen extends StatelessWidget {
       backgroundColor: Colors.white, // Set background to white
       appBar: AppBar(
         title: const Text(
-          'Convoy',
+          'Convoys',
           style: TextStyle(
             color: Color(0xFF1A237E), // Dark blue for app bar title
             fontWeight: FontWeight.bold,
