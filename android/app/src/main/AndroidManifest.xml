@@ -1,29 +1,34 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-
         android:enableOnBackInvokedCallback="true"
         android:label="convoy"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- ✅ Add this meta-data for Google Maps API key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAWpaIBlWyl9ylnmF-UKCAOsyQDgDir1kg"
+            android:value="${MAPS_API_KEY}"
             />
 
         <meta-data
             android:name="com.google.android.geo.MAP_ID"
-            android:value="AIzaSyBwG2pAfS9NmikjhFFLvn3JwRSVZ68ioB8"/>
+            android:value="${MAPS_ID}"/>
 
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
+
+        <service
+            android:name="com.example.convoy.LocationService"
+            android:foregroundServiceType="location"
+            android:exported="false"/>
 
         <activity
             android:name=".MainActivity"
