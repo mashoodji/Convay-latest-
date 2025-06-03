@@ -14,12 +14,12 @@
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}"
+            android:value="AIzaSyAWpaIBlWyl9ylnmF-UKCAOsyQDgDir1kg"
             />
 
         <meta-data
             android:name="com.google.android.geo.MAP_ID"
-            android:value="${MAPS_ID}"/>
+            android:value="AIzaSyBwG2pAfS9NmikjhFFLvn3JwRSVZ68ioB8"/>
 
         <meta-data
             android:name="com.google.android.gms.version"

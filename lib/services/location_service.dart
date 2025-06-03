@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
@@ -14,9 +15,9 @@ class LocationService {
   Future<void> initialize() async {
     // Initialize notifications
     const initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    AndroidInitializationSettings('@mipmap/ic_launcher');
     const initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+    InitializationSettings(android: initializationSettingsAndroid);
     await _notificationsPlugin.initialize(initializationSettings);
 
     // Initialize background service
@@ -50,28 +51,26 @@ class LocationService {
 
   @pragma('vm:entry-point')
   static void onStart(ServiceInstance service) async {
-    // Background service logic
+    DartPluginRegistrant.ensureInitialized(); // Required if using background plugins
+
     service.on('stopService').listen((event) {
       service.stopSelf();
     });
 
-    // Add periodic location updates in background
     Timer.periodic(const Duration(seconds: 10), (timer) async {
-      if (service is AndroidServiceInstance) {
-        if (await service.isForegroundService()) {
-          // Update location
-          try {
-            Position position = await Geolocator.getCurrentPosition();
-            service.invoke(
-              'update',
-              {
-                'latitude': position.latitude,
-                'longitude': position.longitude,
-              },
-            );
-          } catch (e) {
-            print('Error getting location in background: $e');
-          }
+      if (service is AndroidServiceInstance &&
+          await service.isForegroundService()) {
+        try {
+          Position position = await Geolocator.getCurrentPosition();
+          service.invoke(
+            'update',
+            {
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+            },
+          );
+        } catch (e) {
+          print('Error getting location in background: $e');
         }
       }
     });
@@ -79,7 +78,7 @@ class LocationService {
 
   Future<bool> requestPermissions() async {
     bool serviceEnabled;
-    LocationPermission permission;
+    LocationPermission locationPermission;
 
     // Check if location services are enabled
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -89,26 +88,28 @@ class LocationService {
     }
 
     // Request location permissions
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
+    locationPermission = await Geolocator.checkPermission();
+    if (locationPermission == LocationPermission.denied) {
+      locationPermission = await Geolocator.requestPermission();
+      if (locationPermission == LocationPermission.denied) {
         return false;
       }
     }
 
     // Request background location permission
-    if (permission == LocationPermission.whileInUse) {
-      final backgroundStatus = await permission.Permission.locationAlways.status;
+    if (locationPermission == LocationPermission.whileInUse) {
+      final backgroundStatus =
+      await permission.Permission.locationAlways.status;
       if (!backgroundStatus.isGranted) {
-        final result = await permission.Permission.locationAlways.request();
+        final result =
+        await permission.Permission.locationAlways.request();
         if (!result.isGranted) {
           return false;
         }
       }
     }
 
-    if (permission == LocationPermission.deniedForever) {
+    if (locationPermission == LocationPermission.deniedForever) {
       return false;
     }
 
@@ -155,12 +156,12 @@ class LocationService {
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
-        timeLimit: Duration(seconds: 10),
       ),
     );
   }
 
-  Future<void> startLocationUpdates(Function(Position) onLocationUpdate) async {
+  Future<void> startLocationUpdates(
+      Function(Position) onLocationUpdate) async {
     if (!await requestPermissions()) {
       throw Exception('Location permissions not granted');
     }
@@ -189,9 +190,9 @@ class LocationService {
   }
 
   Future<String> getEstimatedArrivalTime(
-    double distance,
-    double averageSpeed,
-  ) async {
+      double distance,
+      double averageSpeed,
+      ) async {
     // Assuming averageSpeed is in km/h and distance is in meters
     final hours = distance / 1000 / averageSpeed;
     final minutes = (hours * 60).round();
@@ -201,7 +202,8 @@ class LocationService {
     } else {
       final remainingMinutes = minutes % 60;
       final hourCount = minutes ~/ 60;
-      return '$hourCount hours ${remainingMinutes > 0 ? '$remainingMinutes minutes' : ''}';
+      return '$hourCount hours'
+          '${remainingMinutes > 0 ? ' $remainingMinutes minutes' : ''}';
     }
   }
 }
