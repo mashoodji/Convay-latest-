@@ -1,17 +1,13 @@
-// lib/screens/trip_map_screen.dart
 import 'dart:async';
 import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-
 import '../../models/trip.dart';
 import '../../services/gomaps_service.dart';
 import '../../services/trip_service.dart';
-
 
 class TripMapScreen extends StatefulWidget {
   final String tripId;
@@ -33,19 +29,17 @@ class _TripMapScreenState extends State<TripMapScreen> {
   final Set<Polyline> _polylines = {};
 
   LatLng? _currentLocation;
+  LatLng? _destination;
   double _distanceKm = 0.0;
   Duration? _estimatedDuration;
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<Trip?>? _tripSubscription;
   StreamSubscription<List<MemberLocation>>? _membersSubscription;
 
-  // Initialize with your GoMaps API key
-  final RouteService _routeService =
-  RouteService('AlzaSyVJMVyUnx7Jb_mOU4WgFDE6jcRKa3H1EYF');
-
-  // For assigning each member a unique color
+  final RouteService _routeService = RouteService('AlzaSyVJMVyUnx7Jb_mOU4WgFDE6jcRKa3H1EYF');
   final Map<String, Color> _memberColors = {};
   final Map<String, Duration?> _memberDurations = {};
+  final Map<String, LatLng> _memberLocations = {};
 
   @override
   void initState() {
@@ -62,13 +56,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
     super.dispose();
   }
 
-  /// Returns a short display version of a userId (first 6 chars) or “?” if missing.
   String _shortMemberId(String userId) {
     if (userId.isEmpty) return '?';
     return userId.length > 6 ? userId.substring(0, 6) : userId;
   }
 
-  /// Assigns each member a distinct color (cycling through Flutter’s primaries).
   Color _getMemberColor(String userId) {
     if (!_memberColors.containsKey(userId)) {
       final idx = _memberColors.length % Colors.primaries.length;
@@ -77,18 +69,16 @@ class _TripMapScreenState extends State<TripMapScreen> {
     return _memberColors[userId]!;
   }
 
-  /// Start listening to the device’s real-time position.
   void _setupLocationUpdates() {
     _locationSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 10,
+        distanceFilter: 10, // Update every 10 meters
       ),
     ).listen((Position pos) async {
       final newLoc = LatLng(pos.latitude, pos.longitude);
       setState(() => _currentLocation = newLoc);
 
-      // Update your location in Firestore (or wherever TripService stores it)
       try {
         await Provider.of<TripService>(context, listen: false)
             .updateMemberLocation(
@@ -96,188 +86,178 @@ class _TripMapScreenState extends State<TripMapScreen> {
           userId: widget.currentUserId,
           location: newLoc,
         );
-        _updateMap(); // redraw routes & markers
+
+        if (_destination != null) {
+          _updateRoute(newLoc, _destination!);
+        }
       } catch (e) {
-        print('[TripMapScreen] Error updating member location: $e');
+        print('Error updating location: $e');
       }
     }, onError: (e) {
-      print('[TripMapScreen] Location stream error: $e');
+      print('Location stream error: $e');
     });
   }
 
-  /// Listen to changes in Trip data and member locations.
   void _listenToTripUpdates() {
     final tripService = Provider.of<TripService>(context, listen: false);
 
-    // Whenever the Trip info itself changes (e.g. destination or status),
-    // re‐draw the map.
     _tripSubscription = tripService.streamTrip(widget.tripId).listen((trip) {
       if (trip != null) {
-        _updateMap();
+        setState(() => _destination = trip.latLng);
+        if (_currentLocation != null) {
+          _updateRoute(_currentLocation!, trip.latLng);
+        }
       }
     }, onError: (e) {
-      print('[TripMapScreen] Trip stream error: $e');
+      print('Trip stream error: $e');
     });
 
-    // Whenever the members’ positions change, recalculate their routes.
-    _membersSubscription =
-        tripService.streamMemberLocations(widget.tripId).listen((members) {
-          tripService.getTrip(widget.tripId).then((trip) {
-            if (trip != null) {
-              _updateMemberRoutes(trip.latLng, members);
-            }
-          }).catchError((e) {
-            print('[TripMapScreen] Error fetching trip for member routes: $e');
-          });
-        }, onError: (e) {
-          print('[TripMapScreen] Member locations stream error: $e');
-        });
+    _membersSubscription = tripService.streamMemberLocations(widget.tripId).listen((members) {
+      _updateMemberMarkers(members);
+      if (_destination != null) {
+        _updateMemberRoutes(_destination!, members);
+      }
+    }, onError: (e) {
+      print('Member locations stream error: $e');
+    });
   }
 
-  /// Redraw the “You → Destination” route (distance + duration + polyline).
-  Future<void> _updateMap() async {
+  Future<void> _updateRoute(LatLng origin, LatLng destination) async {
     try {
-      final tripService = Provider.of<TripService>(context, listen: false);
-      final currentTrip = await tripService.getTrip(widget.tripId);
-      if (_currentLocation == null || currentTrip == null) return;
-
+      // Clear existing route
       setState(() {
-        _markers.clear();
-        _polylines.clear();
-
-        // 1) “You” marker
-        _markers.add(Marker(
-          markerId: const MarkerId('currentUser'),
-          position: _currentLocation!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueBlue),
-          infoWindow: const InfoWindow(title: 'You'),
-        ));
-
-        // 2) Destination marker
-        _markers.add(Marker(
-          markerId: const MarkerId('destination'),
-          position: currentTrip.latLng,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRed),
-          infoWindow: InfoWindow(title: currentTrip.destination),
-        ));
-
-        // 3) Straight‐line distance (for quick display)
-        _distanceKm = Geolocator.distanceBetween(
-          _currentLocation!.latitude,
-          _currentLocation!.longitude,
-          currentTrip.latLng.latitude,
-          currentTrip.latLng.longitude,
-        ) /
-            1000;
+        _polylines.removeWhere((p) => p.polylineId.value == 'your_route');
       });
 
-      // 4) Fetch and draw detailed route via GoMaps:
-      final directionsJson = await _routeService.getRouteDirections(
-        origin: _currentLocation!,
-        destination: currentTrip.latLng,
+      // Get new directions
+      final directions = await _routeService.getRouteDirections(
+        origin: origin,
+        destination: destination,
       );
 
-      if (directionsJson != null) {
-        // a) Extract polyline points
-        final polyPoints = _routeService.extractPolyline(directionsJson);
-        if (polyPoints.isNotEmpty) {
-          setState(() {
+      if (directions != null) {
+        final points = _routeService.extractPolyline(directions);
+        final dd = _routeService.extractDistanceAndDuration(directions);
+
+        setState(() {
+          // Add new route
+          if (points.isNotEmpty) {
             _polylines.add(Polyline(
               polylineId: const PolylineId('your_route'),
-              points: polyPoints,
+              points: points,
               color: Colors.blue,
               width: 5,
             ));
-          });
-        }
+          }
 
-        // b) Extract distance & duration from JSON
-        final dd = _routeService.extractDistanceAndDuration(directionsJson);
-        final distMeters = dd['distance_m'] as int?;
-        final durSeconds = dd['duration_s'] as int?;
-        setState(() {
-          if (distMeters != null) {
-            _distanceKm = distMeters / 1000;
+          // Update distance and duration
+          if (dd['distance_m'] != null) {
+            _distanceKm = (dd['distance_m'] as int) / 1000;
           }
-          if (durSeconds != null) {
-            _estimatedDuration = Duration(seconds: durSeconds);
+          if (dd['duration_s'] != null) {
+            _estimatedDuration = Duration(seconds: dd['duration_s'] as int);
           }
+
+          // Update current location marker
+          _markers.removeWhere((m) => m.markerId.value == 'currentUser');
+          _markers.add(Marker(
+            markerId: const MarkerId('currentUser'),
+            position: origin,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+            infoWindow: const InfoWindow(title: 'You'),
+          ));
+
+          // Ensure destination marker exists
+          _markers.removeWhere((m) => m.markerId.value == 'destination');
+          _markers.add(Marker(
+            markerId: const MarkerId('destination'),
+            position: destination,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            infoWindow: InfoWindow(title: 'Destination'),
+          ));
         });
-      }
 
-      // 5) Center the camera to include both “You” and destination
-      _fitMapToBounds(currentTrip.latLng);
+        _fitMapToBounds(destination);
+      }
     } catch (e) {
-      print('[TripMapScreen] Error in _updateMap: $e');
+      print('Error updating route: $e');
     }
   }
 
-  /// Draw or update routes for each member → Destination.
-  Future<void> _updateMemberRoutes(
-      LatLng destination, List<MemberLocation> members) async {
+  void _updateMemberMarkers(List<MemberLocation> members) {
+    setState(() {
+      // Clear all member markers except current user and destination
+      _markers.removeWhere((m) =>
+      m.markerId.value != 'currentUser' &&
+          m.markerId.value != 'destination');
+
+      // Store member locations and add their markers
+      for (final member in members) {
+        _memberLocations[member.userId] = member.latLng;
+        if (member.userId != widget.currentUserId) {
+          _markers.add(Marker(
+            markerId: MarkerId(member.userId),
+            position: member.latLng,
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            infoWindow: InfoWindow(title: 'Member ${_shortMemberId(member.userId)}'),
+          ));
+        }
+      }
+    });
+  }
+
+  Future<void> _updateMemberRoutes(LatLng destination, List<MemberLocation> members) async {
     try {
+      setState(() {
+        // Clear all member routes
+        _polylines.removeWhere((p) => p.polylineId.value.startsWith('route_'));
+      });
+
       for (final member in members) {
         if (member.userId == widget.currentUserId) continue;
 
-        final directionsJson = await _routeService.getRouteDirections(
+        final directions = await _routeService.getRouteDirections(
           origin: member.latLng,
           destination: destination,
         );
 
-        if (directionsJson != null) {
-          // a) Polyline for member
-          final memberPoints = _routeService.extractPolyline(directionsJson);
-          if (memberPoints.isNotEmpty) {
-            setState(() {
+        if (directions != null) {
+          final points = _routeService.extractPolyline(directions);
+          final dd = _routeService.extractDistanceAndDuration(directions);
+
+          setState(() {
+            if (points.isNotEmpty) {
               _polylines.add(Polyline(
                 polylineId: PolylineId('route_${member.userId}'),
-                points: memberPoints,
+                points: points,
                 color: _getMemberColor(member.userId),
                 width: 4,
               ));
-            });
-          }
+            }
 
-          // b) Member’s ETA
-          final dd = _routeService.extractDistanceAndDuration(directionsJson);
-          final durSeconds = dd['duration_s'] as int?;
-          _memberDurations[member.userId] =
-          durSeconds != null ? Duration(seconds: durSeconds) : null;
-
-          // c) Member marker
-          setState(() {
-            _markers.add(Marker(
-              markerId: MarkerId(member.userId),
-              position: member.latLng,
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueGreen),
-              infoWindow: InfoWindow(
-                  title: 'Member ${_shortMemberId(member.userId)}'),
-            ));
+            if (dd['duration_s'] != null) {
+              _memberDurations[member.userId] = Duration(seconds: dd['duration_s'] as int);
+            }
           });
         }
       }
     } catch (e) {
-      print('[TripMapScreen] Error updating member routes: $e');
+      print('Error updating member routes: $e');
     }
   }
 
-  /// Adjust camera so that both “You” and destination (and any member polylines)
-  /// fit within view. Adds a small padding of 0.01 degrees lat/lng.
   void _fitMapToBounds(LatLng destination) {
-    if (_currentLocation == null) return;
+    if (_currentLocation == null || _mapController == null) return;
 
     try {
-      final southLat =
-          min(_currentLocation!.latitude, destination.latitude) - 0.01;
-      final westLng =
-          min(_currentLocation!.longitude, destination.longitude) - 0.01;
-      final northLat =
-          max(_currentLocation!.latitude, destination.latitude) + 0.01;
-      final eastLng =
-          max(_currentLocation!.longitude, destination.longitude) + 0.01;
+      // Include all markers in bounds calculation
+      final points = [_currentLocation!, destination];
+      points.addAll(_memberLocations.values);
+
+      final southLat = points.map((p) => p.latitude).reduce(min) - 0.01;
+      final westLng = points.map((p) => p.longitude).reduce(min) - 0.01;
+      final northLat = points.map((p) => p.latitude).reduce(max) + 0.01;
+      final eastLng = points.map((p) => p.longitude).reduce(max) + 0.01;
 
       final bounds = LatLngBounds(
         southwest: LatLng(southLat, westLng),
@@ -288,14 +268,13 @@ class _TripMapScreenState extends State<TripMapScreen> {
         CameraUpdate.newLatLngBounds(bounds, 100),
       );
     } catch (e) {
-      print('[TripMapScreen] Error fitting bounds: $e');
+      print('Error fitting bounds: $e');
       _mapController.animateCamera(
         CameraUpdate.newLatLngZoom(_currentLocation!, 14),
       );
     }
   }
 
-  /// Format a Duration into “Xh Ymin” or “Z min”
   String _formatDuration(Duration? d) {
     if (d == null) return 'Calculating…';
     if (d.inHours > 0) {
@@ -312,7 +291,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _updateMap,
+            onPressed: () {
+              if (_currentLocation != null && _destination != null) {
+                _updateRoute(_currentLocation!, _destination!);
+              }
+            },
           )
         ],
       ),
@@ -338,7 +321,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   ),
                   onMapCreated: (controller) {
                     _mapController = controller;
-                    _updateMap();
+                    if (_currentLocation != null && _destination == null) {
+                      _updateRoute(_currentLocation!, trip.latLng);
+                    }
                   },
                   markers: _markers,
                   polylines: _polylines,
@@ -347,7 +332,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 ),
               ),
               Container(
-                width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -360,39 +344,44 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   ],
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Destination title
-                    Text(
-                      'Destination: ${trip.destination}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Distance & Duration row
                     Row(
                       children: [
-                        const Icon(Icons.linear_scale,
-                            size: 16, color: Colors.blue),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${_distanceKm.toStringAsFixed(1)} km',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(width: 16),
-                        const Icon(Icons.timer, size: 16, color: Colors.blue),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDuration(_estimatedDuration),
-                          style: const TextStyle(fontSize: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Destination: ${trip.destination}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.linear_scale, size: 16, color: Colors.blue),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${_distanceKm.toStringAsFixed(1)} km',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Icon(Icons.timer, size: 16, color: Colors.blue),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _formatDuration(_estimatedDuration),
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-
-                    // Members list + ETA
                     StreamBuilder<List<MemberLocation>>(
                       stream: Provider.of<TripService>(context)
                           .streamMemberLocations(widget.tripId),
@@ -403,53 +392,79 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         if (!memberSnap.hasData) {
                           return const Text('Loading members…');
                         }
-                        final members = memberSnap.data!;
+
+                        final otherMembers = memberSnap.data!
+                            .where((m) => m.userId != widget.currentUserId)
+                            .toList();
+
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Members: ${members.length + 1}',
+                              'Members: ${otherMembers.length + 1}',
                               style: const TextStyle(fontSize: 16),
                             ),
                             const SizedBox(height: 4),
-                            // For each member, show a color dot + short ID + ETA
-                            ...members.map((m) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 2),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: BoxDecoration(
-                                        color: _getMemberColor(m.userId),
-                                        shape: BoxShape.circle,
-                                      ),
+                            // Current user
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.blue,
+                                      shape: BoxShape.circle,
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Member ${_shortMemberId(m.userId)}',
-                                      style: const TextStyle(fontSize: 14),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text('You', style: TextStyle(fontSize: 14)),
+                                  const Spacer(),
+                                  Text(
+                                    _formatDuration(_estimatedDuration),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
                                     ),
-                                    const Spacer(),
-                                    Text(
-                                      _formatDuration(
-                                          _memberDurations[m.userId]),
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[600],
-                                      ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Other members
+                            ...otherMembers.map((m) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: _getMemberColor(m.userId),
+                                      shape: BoxShape.circle,
                                     ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Member ${_shortMemberId(m.userId)}',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    _formatDuration(_memberDurations[m.userId]),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )).toList(),
                           ],
                         );
                       },
                     ),
                     const SizedBox(height: 8),
-                    // Last-updated timestamp
                     Text(
                       'Last updated: ${DateFormat.jm().format(DateTime.now())}',
                       style: TextStyle(

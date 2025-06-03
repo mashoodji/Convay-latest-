@@ -18,7 +18,8 @@ class TripService {
     required String destination,
     required DateTime dateTime,
     required LatLng location,
-    String? tripId, required Map members,
+    String? tripId,
+    required Map members,
   }) async {
     try {
       final generatedTripId = tripId ?? generateTripId(destination);
@@ -35,7 +36,7 @@ class TripService {
 
       await docRef.set(tripData);
 
-      // Initialize admin location
+      // Save admin location
       await updateMemberLocation(
         tripId: generatedTripId,
         userId: adminId,
@@ -60,7 +61,8 @@ class TripService {
   Future<bool> joinTrip({
     required String tripId,
     required String userId,
-    required LatLng location, required String name,
+    required LatLng location,
+    required String name,
   }) async {
     try {
       final docRef = _tripsCollection.doc(tripId);
@@ -132,9 +134,8 @@ class TripService {
         .snapshots()
         .handleError((error) {
       print('Error streaming member locations: $error');
-      return Stream.value([]); // Return empty list on error
-    })
-        .map((snapshot) {
+      return Stream.value([]);
+    }).map((snapshot) {
       return snapshot.docs.map((doc) {
         try {
           return MemberLocation.fromMap(doc.data() as Map<String, dynamic>);
@@ -162,11 +163,9 @@ class MemberLocation {
 
   factory MemberLocation.fromMap(Map<String, dynamic> data) {
     try {
-      // Handle potential null values with proper fallbacks
       final tripId = data['tripId']?.toString() ?? '';
       final userId = data['userId']?.toString() ?? '';
 
-      // Safely handle location data
       GeoPoint location;
       if (data['location'] is GeoPoint) {
         location = data['location'] as GeoPoint;
@@ -180,7 +179,6 @@ class MemberLocation {
         throw Exception('Invalid location data');
       }
 
-      // Handle timestamp conversion
       DateTime updatedAt;
       if (data['updatedAt'] is Timestamp) {
         updatedAt = (data['updatedAt'] as Timestamp).toDate();
